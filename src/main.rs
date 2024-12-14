@@ -1,24 +1,11 @@
-use axum::{body::Body, http::header, response::Response, routing::get, Router};
+mod day1;
 
-async fn hello_world() -> &'static str {
-    "Hello, bird!"
-}
-
-async fn seek() -> Response {
-    Response::builder()
-        .status(302)
-        .header(
-            header::LOCATION,
-            "https://www.youtube.com/watch?v=9Gc4QTqslN4",
-        )
-        .body(Body::empty())
-        .unwrap()
-}
+use axum::{routing::get, Router};
 
 #[shuttle_runtime::main]
 async fn main() -> shuttle_axum::ShuttleAxum {
     let router = Router::new()
-        .route("/", get(hello_world))
-        .route("/-1/seek", get(seek));
+        .route("/", get(day1::hello_world))
+        .route("/-1/seek", get(day1::seek));
     Ok(router.into())
 }
