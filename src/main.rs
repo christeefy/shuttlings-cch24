@@ -11,6 +11,7 @@ use axum::{
     Router,
 };
 use leaky_bucket::RateLimiter;
+use rand::SeedableRng;
 use tokio::sync::RwLock;
 
 type AppState = Arc<RwLock<InnerAppState>>;
@@ -18,6 +19,7 @@ type AppState = Arc<RwLock<InnerAppState>>;
 struct InnerAppState {
     board: day12::Board,
     rate_limiter: RateLimiter,
+    rng: rand::rngs::StdRng,
 }
 
 impl InnerAppState {
@@ -25,7 +27,12 @@ impl InnerAppState {
         Self {
             board: day12::Board::<4>::new(),
             rate_limiter: Self::default_rate_limiter(),
+            rng: Self::default_rng(),
         }
+    }
+
+    fn reset_rng(&mut self) {
+        self.rng = Self::default_rng();
     }
 
     fn reload_rate_limiter(&mut self) {
@@ -38,6 +45,10 @@ impl InnerAppState {
             .max(5)
             .interval(Duration::from_secs(1))
             .build()
+    }
+
+    fn default_rng() -> rand::rngs::StdRng {
+        rand::rngs::StdRng::seed_from_u64(2024)
     }
 }
 
@@ -55,6 +66,7 @@ async fn main() -> shuttle_axum::ShuttleAxum {
         .route("/9/milk", post(day09::milk))
         .route("/9/refill", post(day09::refill))
         .route("/12/board", get(day12::board))
+        .route("/12/random-board", get(day12::random_board))
         .route("/12/reset", post(day12::reset))
         .route("/12/place/:team/:column", post(day12::place))
         .with_state(state);

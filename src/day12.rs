@@ -6,6 +6,7 @@ use axum::{
     response::IntoResponse,
 };
 use ndarray::{s, Array2};
+use rand::Rng;
 use serde::Deserialize;
 
 use crate::AppState;
@@ -54,8 +55,8 @@ pub struct Board<const N: usize = 4> {
 
 // NOTE: This doesn't impl `Error`
 pub enum BoardError {
-    ColumnFull(usize),
-    OutOfBound(usize),
+    ColumnFull,
+    OutOfBound,
     GameOver,
 }
 
@@ -65,6 +66,22 @@ impl<const N: usize> Board<N> {
             cells: Array2::default((N, N)),
             game_state: GameState::default(),
         }
+    }
+
+    pub fn new_randomized(rng: &mut rand::rngs::StdRng) -> Self {
+        let mut board = Self::new();
+        let _ = board
+            .cells
+            .iter_mut()
+            .map(|elem| {
+                if rng.gen::<bool>() {
+                    *elem = Some(Team::Cookie);
+                } else {
+                    *elem = Some(Team::Milk);
+                }
+            })
+            .collect::<Vec<_>>();
+        board
     }
 
     pub fn reset(&mut self) {
@@ -77,27 +94,15 @@ impl<const N: usize> Board<N> {
         N
     }
 
-    // pub fn set(&mut self, value: Team, (x, y): (usize, usize)) {
-    //     if let WinState::Won(ref team) = self.win_state {
-    //         panic!("Cannot set board. Game is already complete with {team} as the winner")
-    //     }
-    //     match self.cells.get((x, y)) {
-    //         Some(Some(_)) => panic!("Tile ({x}, {y}) is already set"),
-    //         Some(None) => self.cells[[x, y]] = Some(value.clone()),
-    //         None => panic!("Out of bounds ({x}, {y})"),
-    //     };
-    //     self.win_state = self.check_win_condition(&value, (x, y))
-    // }
-
     pub fn set_column(&mut self, value: Team, col: usize) -> Result<(), BoardError> {
         if let GameState::Won(_) = self.game_state {
             return Err(BoardError::GameOver);
         }
         if col >= N {
-            return Err(BoardError::OutOfBound(col));
+            return Err(BoardError::OutOfBound);
         }
         if self.column_is_full(col) {
-            return Err(BoardError::ColumnFull(col));
+            return Err(BoardError::ColumnFull);
         }
 
         let lowest_empty_row = self
@@ -197,9 +202,10 @@ pub async fn board(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 pub async fn reset(State(state): State<AppState>) -> impl IntoResponse {
-    let board = &mut state.write().await.board;
-    board.reset();
-    (StatusCode::OK, board.to_string())
+    let state = &mut state.write().await;
+    state.board.reset();
+    state.reset_rng();
+    (StatusCode::OK, state.board.to_string())
 }
 
 pub async fn place(
@@ -208,14 +214,18 @@ pub async fn place(
 ) -> impl IntoResponse {
     let board = &mut state.write().await.board;
     if column == 0 || column > board.size() {
-        return StatusCode::BAD_REQUEST.into_response();
+        return (StatusCode::BAD_REQUEST, "Invalid column".to_string());
     };
     let Ok(team) = serde_json::from_str(&format!(r#""{team}""#)) else {
-        return StatusCode::BAD_REQUEST.into_response();
+        return (StatusCode::BAD_REQUEST, "Invalid team".to_string());
     };
     match (board.set_column(team, column - 1), &board.game_state) {
         // Errors, or the game has just ended (Won or Stalemate)
-        (Err(_), _) => (StatusCode::SERVICE_UNAVAILABLE, board.to_string()).into_response(),
-        _ => (StatusCode::OK, board.to_string()).into_response(),
+        (Err(_), _) => (StatusCode::SERVICE_UNAVAILABLE, board.to_string()),
+        _ => (StatusCode::OK, board.to_string()),
     }
+}
+
+pub async fn random_board(State(state): State<AppState>) -> impl IntoResponse {
+    Board::<4>::new_randomized(&mut state.write().await.rng).to_string()
 }
