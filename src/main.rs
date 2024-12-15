@@ -2,6 +2,7 @@ mod day00;
 mod day02;
 mod day05;
 mod day09;
+mod day12;
 
 use std::{sync::Arc, time::Duration};
 
@@ -15,12 +16,14 @@ use tokio::sync::RwLock;
 type AppState = Arc<RwLock<InnerAppState>>;
 
 struct InnerAppState {
+    board: day12::Board,
     rate_limiter: RateLimiter,
 }
 
 impl InnerAppState {
     fn new() -> Self {
         Self {
+            board: day12::Board::<4>::new(),
             rate_limiter: Self::default_rate_limiter(),
         }
     }
@@ -51,6 +54,9 @@ async fn main() -> shuttle_axum::ShuttleAxum {
         .route("/5/manifest", post(day05::manifest))
         .route("/9/milk", post(day09::milk))
         .route("/9/refill", post(day09::refill))
+        .route("/12/board", get(day12::board))
+        .route("/12/reset", post(day12::reset))
+        .route("/12/place/:team/:column", post(day12::place))
         .with_state(state);
     Ok(router.into())
 }
