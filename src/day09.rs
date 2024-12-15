@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::{
     extract::{rejection::JsonRejection, State},
     http::{header::CONTENT_TYPE, HeaderMap, StatusCode},

@@ -1,7 +1,7 @@
-mod day1;
-mod day2;
-mod day5;
-mod day9;
+mod day00;
+mod day02;
+mod day05;
+mod day09;
 
 use std::{sync::Arc, time::Duration};
 
@@ -42,15 +42,15 @@ impl InnerAppState {
 async fn main() -> shuttle_axum::ShuttleAxum {
     let state = Arc::new(RwLock::new(InnerAppState::new()));
     let router = Router::new()
-        .route("/", get(day1::hello_world))
-        .route("/-1/seek", get(day1::seek))
-        .route("/2/dest", get(day2::dest))
-        .route("/2/key", get(day2::key))
-        .route("/2/v6/dest", get(day2::dest_v6))
-        .route("/2/v6/key", get(day2::key_v6))
-        .route("/5/manifest", post(day5::manifest))
-        .route("/9/milk", post(day9::milk))
-        .route("/9/refill", post(day9::refill))
+        .route("/", get(day00::hello_world))
+        .route("/-1/seek", get(day00::seek))
+        .route("/2/dest", get(day02::dest))
+        .route("/2/key", get(day02::key))
+        .route("/2/v6/dest", get(day02::dest_v6))
+        .route("/2/v6/key", get(day02::key_v6))
+        .route("/5/manifest", post(day05::manifest))
+        .route("/9/milk", post(day09::milk))
+        .route("/9/refill", post(day09::refill))
         .with_state(state);
     Ok(router.into())
 }
