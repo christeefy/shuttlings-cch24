@@ -137,7 +137,7 @@ pub async fn manifest(header: HeaderMap, body: String) -> impl IntoResponse {
                 "Invalid content type header".to_string(),
             ),
         },
-        _ => (
+        None => (
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
             "Invalid content type header".to_string(),
         ),
