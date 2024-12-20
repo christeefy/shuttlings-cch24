@@ -4,11 +4,12 @@ mod day05;
 mod day09;
 mod day12;
 mod day16;
+mod day19;
 
 use std::{sync::Arc, time::Duration};
 
 use axum::{
-    routing::{get, post},
+    routing::{delete, get, post, put},
     Router,
 };
 use leaky_bucket::RateLimiter;
@@ -22,15 +23,17 @@ struct InnerAppState {
     rate_limiter: RateLimiter,
     rng: rand::rngs::StdRng,
     secrets: shuttle_runtime::SecretStore,
+    pool: sqlx::PgPool,
 }
 
 impl InnerAppState {
-    fn new(secrets: shuttle_runtime::SecretStore) -> Self {
+    fn new(secrets: shuttle_runtime::SecretStore, pool: sqlx::PgPool) -> Self {
         Self {
             board: day12::Board::<4>::new(),
             rate_limiter: Self::default_rate_limiter(),
             rng: Self::default_rng(),
             secrets,
+            pool,
         }
     }
 
@@ -58,8 +61,15 @@ impl InnerAppState {
 #[shuttle_runtime::main]
 async fn main(
     #[shuttle_runtime::Secrets] secrets: shuttle_runtime::SecretStore,
+    #[shuttle_shared_db::Postgres] pool: sqlx::PgPool,
 ) -> shuttle_axum::ShuttleAxum {
-    let state = Arc::new(RwLock::new(InnerAppState::new(secrets)));
+    // Stand up database
+    sqlx::migrate!("db/migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to migrate database");
+
+    let state = Arc::new(RwLock::new(InnerAppState::new(secrets, pool)));
     let router = Router::new()
         .route("/", get(day00::hello_world))
         .route("/-1/seek", get(day00::seek))
@@ -77,6 +87,11 @@ async fn main(
         .route("/16/wrap", post(day16::wrap))
         .route("/16/unwrap", get(day16::unwrap))
         .route("/16/decode", post(day16::decode))
+        .route("/19/reset", post(day19::reset))
+        .route("/19/cite/:id", get(day19::cite))
+        .route("/19/remove/:id", delete(day19::remove))
+        .route("/19/undo/:id", put(day19::undo))
+        .route("/19/draft", post(day19::draft))
         .with_state(state);
     Ok(router.into())
 }
