@@ -1,9 +1,10 @@
 use axum::{
-    extract::{rejection::JsonRejection, Path, State},
+    extract::{rejection::JsonRejection, Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
+use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use sqlx::types::{
     chrono::{DateTime, Utc},
@@ -141,5 +142,90 @@ pub async fn draft(
             StatusCode::INTERNAL_SERVER_ERROR,
             "Failed to draft quote".to_string(),
         ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListParam {
+    token: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ListResponse<'a> {
+    quotes: &'a [Quote],
+    page: u32,
+    next_token: Option<String>,
+}
+
+pub async fn list(
+    State(state): State<AppState>,
+    query: Option<Query<ListParam>>,
+) -> impl IntoResponse {
+    const PAGE_SIZE: usize = 3; // sqlx integers cannot be unsigned
+    const TOKEN_LENGTH: usize = 16;
+
+    let page_number = match query {
+        Some(Query(ListParam { token })) => match state.read().await.list_tokens.get(&token) {
+            Some(page_number) => *page_number,
+            None => return (StatusCode::BAD_REQUEST, "Invalid token".to_string()),
+        },
+        None => 1,
+    };
+    let page_offset = (page_number - 1) * 3;
+
+    let Ok(quotes) = sqlx::query_as!(
+        Quote,
+        "SELECT *
+            FROM quotes
+            ORDER BY
+                created_at
+            LIMIT ($1)
+            OFFSET ($2)",
+        (PAGE_SIZE + 1) as i64,
+        page_offset as i64
+    )
+    .fetch_all(&state.read().await.pool)
+    .await
+    else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Query failed".to_string(),
+        );
+    };
+
+    let next_token = if quotes.len() > PAGE_SIZE {
+        Some(
+            rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(TOKEN_LENGTH)
+                .map(char::from)
+                .collect(),
+        )
+    } else {
+        None
+    };
+
+    let response = ListResponse {
+        quotes: &quotes[..PAGE_SIZE.min(quotes.len())],
+        page: page_number,
+        next_token: next_token.clone(),
+    };
+
+    if let Ok(json_str) = serde_json::to_string(&response) {
+        // When there are no more possible errors,
+        // update the app state with the new token before returning
+        if let Some(next_token) = next_token {
+            state
+                .write()
+                .await
+                .list_tokens
+                .insert(next_token, page_number + 1);
+        }
+        (StatusCode::OK, json_str)
+    } else {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to serialize response".to_string(),
+        )
     }
 }

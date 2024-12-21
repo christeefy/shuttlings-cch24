@@ -6,7 +6,7 @@ mod day12;
 mod day16;
 mod day19;
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use axum::{
     routing::{delete, get, post, put},
@@ -24,6 +24,7 @@ struct InnerAppState {
     rng: rand::rngs::StdRng,
     secrets: shuttle_runtime::SecretStore,
     pool: sqlx::PgPool,
+    list_tokens: HashMap<String, u32>,
 }
 
 impl InnerAppState {
@@ -34,6 +35,7 @@ impl InnerAppState {
             rng: Self::default_rng(),
             secrets,
             pool,
+            list_tokens: HashMap::new(),
         }
     }
 
@@ -64,7 +66,7 @@ async fn main(
     #[shuttle_shared_db::Postgres] pool: sqlx::PgPool,
 ) -> shuttle_axum::ShuttleAxum {
     // Stand up database
-    sqlx::migrate!("db/migrations")
+    sqlx::migrate!()
         .run(&pool)
         .await
         .expect("Failed to migrate database");
@@ -92,6 +94,7 @@ async fn main(
         .route("/19/remove/:id", delete(day19::remove))
         .route("/19/undo/:id", put(day19::undo))
         .route("/19/draft", post(day19::draft))
+        .route("/19/list", get(day19::list))
         .with_state(state);
     Ok(router.into())
 }
