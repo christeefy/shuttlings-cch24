@@ -165,8 +165,8 @@ pub async fn list(
     const TOKEN_LENGTH: usize = 16;
 
     let page_number = match query {
-        Some(Query(ListParam { token })) => match state.read().await.list_tokens.get(&token) {
-            Some(page_number) => *page_number,
+        Some(Query(ListParam { token })) => match state.write().await.list_tokens.remove(&token) {
+            Some(page_number) => page_number,
             None => return (StatusCode::BAD_REQUEST, "Invalid token".to_string()),
         },
         None => 1,
