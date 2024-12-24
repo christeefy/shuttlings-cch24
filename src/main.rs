@@ -5,6 +5,7 @@ mod day09;
 mod day12;
 mod day16;
 mod day19;
+mod day23;
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
@@ -15,6 +16,7 @@ use axum::{
 use leaky_bucket::RateLimiter;
 use rand::SeedableRng;
 use tokio::sync::RwLock;
+use tower_http::services::ServeDir;
 
 type AppState = Arc<RwLock<InnerAppState>>;
 
@@ -95,6 +97,11 @@ async fn main(
         .route("/19/undo/:id", put(day19::undo))
         .route("/19/draft", post(day19::draft))
         .route("/19/list", get(day19::list))
-        .with_state(state);
+        .route("/23/star", get(day23::star))
+        .route("/23/present/:color", get(day23::present))
+        .route("/23/ornament/:state/:n", get(day23::ornament))
+        .route("/23/lockfile", post(day23::lockfile))
+        .with_state(state)
+        .nest_service("/assets", ServeDir::new("assets"));
     Ok(router.into())
 }
